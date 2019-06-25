@@ -44,3 +44,20 @@ class BaseHeap(object):
             An integer.
         """
         raise NotImplementedError()
+
+
+    def is_initialized(self):
+        """Returns whether the allocator is initialized or not.
+
+        Returns:
+            A boolean.
+        """
+        raise NotImplementedError()
+
+    def libc_has_debug_syms(self):
+        """Returns whether the libc has debug symbols or not.
+
+        Returns:
+            A boolean.
+        """
+        raise NotImplementedError()

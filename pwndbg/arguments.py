@@ -15,6 +15,8 @@ from capstone import CS_GRP_INT
 
 import pwndbg.abi
 import pwndbg.arch
+import pwndbg.chain
+import pwndbg.color.nearpc as N
 import pwndbg.constants
 import pwndbg.disasm
 import pwndbg.funcparser
@@ -101,9 +103,6 @@ def get(instruction):
         # Get the syscall number and name
         abi = pwndbg.abi.ABI.syscall()
 
-        # print(abi)
-        # print(abi.register_arguments)
-
         target  = None
         syscall = getattr(pwndbg.regs, abi.syscall_register)
         name    = pwndbg.constants.syscall(syscall)
@@ -114,10 +113,16 @@ def get(instruction):
     name = name or ''
 
     sym   = gdb.lookup_symbol(name)
-    name  = name.strip().lstrip('_')    # _malloc
     name  = name.replace('isoc99_', '') # __isoc99_sscanf
     name  = name.replace('@plt', '')    # getpwiod@plt
-    name  = name.replace('_chk', '')    # __printf_chk
+
+    # If we have particular `XXX_chk` function in our database, we use it.
+    # Otherwise, we show args for its unchecked version.
+    # We also lstrip `_` in here, as e.g. `__printf_chk` needs the underscores.
+    if name not in pwndbg.functions.functions:
+        name  = name.replace('_chk', '')
+        name  = name.strip().lstrip('_')    # _malloc
+
     func = pwndbg.functions.functions.get(name, None)
 
     # Try to extract the data from GDB.
@@ -169,6 +174,7 @@ def argument(n, abi=None):
     """
     Returns the nth argument, as if $pc were a 'call' or 'bl' type
     instruction.
+    Works only for ABIs that use registers for arguments.
     """
     abi  = abi or pwndbg.abi.ABI.default()
     regs = abi.register_arguments
@@ -186,9 +192,19 @@ def argument(n, abi=None):
 def arguments(abi=None):
     """
     Yields (arg_name, arg_value) tuples for arguments from a given ABI.
+    Works only for ABIs that use registers for arguments.
     """
     abi  = abi or pwndbg.abi.ABI.default()
     regs = abi.register_arguments
 
     for i in range(len(regs)):
         yield argname(i, abi), argument(i, abi)
+
+
+def format_args(instruction):
+    result = []
+    for arg, value in get(instruction):
+        code   = arg.type != 'char'
+        pretty = pwndbg.chain.format(value, code=code)
+        result.append('%-10s %s' % (N.argument(arg.name) + ':', pretty))
+    return result

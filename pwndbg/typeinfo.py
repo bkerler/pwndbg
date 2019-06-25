@@ -43,26 +43,27 @@ def lookup_types(*types):
     raise exc
 
 
+@pwndbg.events.new_objfile
 @pwndbg.events.start
 @pwndbg.events.stop
 def update():
 
     module.char   = gdb.lookup_type('char')
-    module.ulong  = lookup_types('unsigned long', 'uint')
-    module.long   = lookup_types('long', 'int')
-    module.uchar  = lookup_types('unsigned char', 'ubyte')
-    module.ushort = lookup_types('unsigned short', 'ushort')
-    module.uint   = lookup_types('unsigned int', 'uint')
-    module.void   = gdb.lookup_type('void')
+    module.ulong  = lookup_types('unsigned long', 'uint', 'u32', 'uint32')
+    module.long   = lookup_types('long', 'int', 'i32', 'int32')
+    module.uchar  = lookup_types('unsigned char', 'ubyte', 'u8', 'uint8')
+    module.ushort = lookup_types('unsigned short', 'ushort', 'u16', 'uint16')
+    module.uint   = lookup_types('unsigned int', 'uint', 'u32', 'uint32')
+    module.void   = lookup_types('void', '()')
     module.uint8  = module.uchar
     module.uint16 = module.ushort
     module.uint32 = module.uint
-    module.uint64 = lookup_types('unsigned long long', 'ulong')
+    module.uint64 = lookup_types('unsigned long long', 'ulong', 'u64', 'uint64')
 
-    module.int8   = gdb.lookup_type('char')
-    module.int16  = gdb.lookup_type('short')
-    module.int32  = gdb.lookup_type('int')
-    module.int64  = lookup_types('long long', 'long')
+    module.int8   = lookup_types('char', 'i8', 'int8')
+    module.int16  = lookup_types('short', 'i16', 'int16')
+    module.int32  = lookup_types('int', 'i32', 'int32')
+    module.int64  = lookup_types('long long', 'long', 'i64', 'int64')
 
     module.ssize_t = module.long
     module.size_t = module.ulong
@@ -153,7 +154,10 @@ def compile(filename=None, address=0):
     if not os.path.exists(objectname):
         gcc     = pwndbg.gcc.which()
         gcc    += ['-w', '-c', '-g', filename, '-o', objectname]
-        subprocess.check_output(' '.join(gcc), shell=True)
+        try:
+            subprocess.check_output(gcc)
+        except subprocess.CalledProcessError as e:
+            return
 
     add_symbol_file(objectname, address)
 

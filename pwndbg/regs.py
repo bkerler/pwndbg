@@ -19,7 +19,6 @@ import gdb
 import six
 
 import pwndbg.arch
-import pwndbg.compat
 import pwndbg.events
 import pwndbg.memoize
 import pwndbg.proc
@@ -98,29 +97,43 @@ class RegisterSet(object):
         for r in self.all:
             yield r
 
+arm_cpsr_flags = collections.OrderedDict([
+    ('N', 31), ('Z', 30), ('C', 29), ('V', 28), ('Q', 27), ('J', 24), ('T', 5), ('E', 9), ('A', 8), ('I', 7), ('F', 6)])
+arm_xpsr_flags = collections.OrderedDict([
+    ('N', 31), ('Z', 30), ('C', 29), ('V', 28), ('Q', 27), ('T', 24)])
+
 arm = RegisterSet(  retaddr = ('lr',),
-                    flags   = {'cpsr':{}},
+                    flags   = {'cpsr': arm_cpsr_flags},
                     gpr     = tuple('r%i' % i for i in range(13)),
                     args    = ('r0','r1','r2','r3'),
                     retval  = 'r0')
 
+# ARM Cortex-M
+armcm = RegisterSet(  retaddr = ('lr',),
+                    flags   = {'xpsr': arm_xpsr_flags},
+                    gpr     = tuple('r%i' % i for i in range(13)),
+                    args    = ('r0','r1','r2','r3'),
+                    retval  = 'r0')
+
+# FIXME AArch64 does not have a CPSR register
 aarch64 = RegisterSet(  retaddr = ('lr',),
                         flags   = {'cpsr':{}},
+                        frame   = 'x29',
                         gpr     = tuple('x%i' % i for i in range(29)),
                         misc    = tuple('w%i' % i for i in range(29)),
                         args    = ('x0','x1','x2','x3'),
                         retval  = 'x0')
 
-x86flags = {'eflags': {
-    'CF':  0,
-    'PF':  2,
-    'AF':  4,
-    'ZF':  6,
-    'SF':  7,
-    'IF':  9,
-    'DF': 10,
-    'OF': 11,
-}}
+x86flags = {'eflags': collections.OrderedDict([
+    ('CF',  0),
+    ('PF',  2),
+    ('AF',  4),
+    ('ZF',  6),
+    ('SF',  7),
+    ('IF',  9),
+    ('DF', 10),
+    ('OF', 11),
+])}
 
 amd64 = RegisterSet(pc      = 'rip',
                     stack   = 'rsp',
@@ -187,7 +200,7 @@ powerpc = RegisterSet(  retaddr = ('lr','r0'),
 # %o0 == %r8                          \
 # ...                                 | o stands for output (note: not 0)
 # %o6 == %r14 == %sp (stack ptr)      |
-# %o7 == %r15 == for return aaddress   |
+# %o7 == %r15 == for return address   |
 # ____________________________________/
 # %l0 == %r16                         \
 # ...                                 | l stands for local (note: not 1)
@@ -200,12 +213,12 @@ powerpc = RegisterSet(  retaddr = ('lr','r0'),
 # ____________________________________/
 
 sparc_gp = tuple(['g%i' % i for i in range(1,8)]
-                +['o%i' % i for i in range(0,6)]
+                +['o%i' % i for i in range(0,6)]+['o7']
                 +['l%i' % i for i in range(0,8)]
                 +['i%i' % i for i in range(0,6)])
-sparc = RegisterSet(stack   = 'o6',
-                    frame   = 'i6',
-                    retaddr = ('o7',),
+sparc = RegisterSet(stack   = 'sp',
+                    frame   = 'fp',
+                    retaddr = ('i7',),
                     flags   = {'psr':{}},
                     gpr     = sparc_gp,
                     args    = ('i0','i1','i2','i3','i4','i5'),
@@ -239,6 +252,7 @@ arch_to_regs = {
     'mips': mips,
     'sparc': sparc,
     'arm': arm,
+    'armcm': armcm,
     'aarch64': aarch64,
     'powerpc': powerpc,
 }
@@ -249,7 +263,7 @@ def gdb77_get_register(name):
 
 @pwndbg.proc.OnlyWhenRunning
 def gdb79_get_register(name):
-    return gdb.newest_frame().read_register(name)
+    return gdb.selected_frame().read_register(name)
 
 try:
     gdb.Frame.read_register
@@ -267,6 +281,7 @@ class module(ModuleType):
     last = {}
 
     @pwndbg.memoize.reset_on_stop
+    @pwndbg.memoize.reset_on_prompt
     def __getattr__(self, attr):
         attr = attr.lstrip('$')
         try:
@@ -275,6 +290,8 @@ class module(ModuleType):
                 value = gdb77_get_register(attr)
                 value = value.cast(pwndbg.typeinfo.uint32)
             else:
+                if attr.lower() == 'xpsr':
+                    attr = 'xPSR'
                 value = get_register(attr)
                 value = value.cast(pwndbg.typeinfo.ptrdiff)
 
@@ -284,6 +301,7 @@ class module(ModuleType):
             return None
 
     @pwndbg.memoize.reset_on_stop
+    @pwndbg.memoize.reset_on_prompt
     def __getitem__(self, item):
         if isinstance(item, six.integer_types):
             return arch_to_regs[pwndbg.arch.current][item]
@@ -422,6 +440,7 @@ sys.modules[__name__] = module(__name__, '')
 
 
 @pwndbg.events.cont
+@pwndbg.events.stop
 def update_last():
     M = sys.modules[__name__]
     M.last = {k:M[k] for k in M.common}

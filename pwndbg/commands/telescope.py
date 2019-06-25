@@ -34,18 +34,30 @@ repeating_marker = theme.Parameter('telescope-repeating-marker', '... ↓',
                                    'repeating values marker of the telescope command')
 
 
-@pwndbg.commands.ParsedCommand
+parser = argparse.ArgumentParser(description="""
+    Recursively dereferences pointers starting at the specified address
+    ($sp by default)
+    """)
+parser.add_argument("address", nargs="?", default=None, type=int, help="The address to telescope at.")
+parser.add_argument("count", nargs="?", default=telescope_lines, type=int, help="The number of lines to show.")
+@pwndbg.commands.ArgparsedCommand(parser)
 @pwndbg.commands.OnlyWhenRunning
-def telescope(address=None, count=telescope_lines, to_string=False):
+def telescope(address=None, count=None, to_string=False):
     """
     Recursively dereferences pointers starting at the specified address
     ($sp by default)
     """
+    ptrsize   = pwndbg.typeinfo.ptrsize
+    if telescope.repeat:
+        address = telescope.last_address + ptrsize
+        telescope.offset += 1
+    else:
+        telescope.offset = 0
+
     address = int(address if address else pwndbg.regs.sp) & pwndbg.arch.ptrmask
     count   = max(int(count), 1) & pwndbg.arch.ptrmask
     delimiter = T.delimiter(offset_delimiter)
     separator = T.separator(offset_separator)
-    ptrsize   = pwndbg.typeinfo.ptrsize
 
     # Allow invocation of "telescope 20" to dump 20 bytes at the stack pointer
     if address < pwndbg.memory.MMAP_MIN_ADDR and not pwndbg.memory.peek(address):
@@ -103,10 +115,13 @@ def telescope(address=None, count=telescope_lines, to_string=False):
         last = value
         skip = False
 
-        line = ' '.join((T.offset("%02x%s%04x%s" % (i, delimiter, addr-start, separator)),
+        line = ' '.join((T.offset("%02x%s%04x%s" % (i + telescope.offset, delimiter,
+                                                    addr - start + (telescope.offset * ptrsize), separator)),
                          T.register(regs[addr].ljust(longest_regs)),
                          pwndbg.chain.format(addr)))
         result.append(line)
+    telescope.offset += i
+    telescope.last_address = addr
 
     if not to_string:
         print('\n'.join(result))
@@ -114,7 +129,7 @@ def telescope(address=None, count=telescope_lines, to_string=False):
     return result
 
 
-parser = argparse.ArgumentParser(description='dereferences on stack data with specified count and offset')
+parser = argparse.ArgumentParser(description='dereferences on stack data with specified count and offset.')
 parser.add_argument('count', nargs='?', default=8, type=int,
                     help='number of element to dump')
 parser.add_argument('offset', nargs='?', default=0, type=int,
@@ -125,4 +140,9 @@ parser.add_argument('offset', nargs='?', default=0, type=int,
 @pwndbg.commands.OnlyWhenRunning
 def stack(count, offset):
     ptrsize = pwndbg.typeinfo.ptrsize
+    telescope.repeat = stack.repeat
     telescope(address=pwndbg.regs.sp + offset * ptrsize, count=count)
+
+
+telescope.last_address = 0
+telescope.offset = 0

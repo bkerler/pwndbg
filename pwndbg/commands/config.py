@@ -15,6 +15,7 @@ import pwndbg.config
 from pwndbg.color import light_yellow
 from pwndbg.color import ljust_colored
 from pwndbg.color import strip
+from pwndbg.color.message import hint
 
 
 def print_row(name, value, default, docstring, ljust_optname, ljust_value, empty_space=6):
@@ -32,10 +33,30 @@ def extend_value_with_default(value, default):
     return value
 
 
-@pwndbg.commands.ArgparsedCommand('Shows pwndbg-specific configuration points')
-def config():
+def get_config_parameters(scope, filter_pattern):
     values = [v for k, v in pwndbg.config.__dict__.items()
-              if isinstance(v, pwndbg.config.Parameter) and v.scope == 'config']
+              if isinstance(v, pwndbg.config.Parameter) and v.scope == scope]
+
+    if filter_pattern:
+        filter_pattern = filter_pattern.lower()
+        values = [v for v in values if filter_pattern in v.optname.lower() or filter_pattern in v.docstring.lower()]
+
+    return values
+
+
+parser = argparse.ArgumentParser(description='Shows pwndbg-specific config. The list can be filtered.')
+parser.add_argument('filter_pattern', type=str, nargs='?', default=None,
+                    help='Filter to apply to config parameters names/descriptions')
+
+
+@pwndbg.commands.ArgparsedCommand(parser)
+def config(filter_pattern):
+    values = get_config_parameters('config', filter_pattern)
+
+    if not values:
+        print(hint('No config parameter found with filter "{}"'.format(filter_pattern)))
+        return
+
     longest_optname = max(map(len, [v.optname for v in values]))
     longest_value = max(map(len, [extend_value_with_default(repr(v.value), repr(v.default)) for v in values]))
 
@@ -45,9 +66,9 @@ def config():
     for v in sorted(values):
         print_row(v.optname, repr(v.value), repr(v.default), v.docstring, longest_optname, longest_value)
 
-    print(light_yellow('You can set config variable with `set <config-var> <value>`'))
-    print(light_yellow('You can generate configuration file using `configfile` '
-                       '- then put it in your .gdbinit after initializing pwndbg'))
+    print(hint('You can set config variable with `set <config-var> <value>`'))
+    print(hint('You can generate configuration file using `configfile` '
+               '- then put it in your .gdbinit after initializing pwndbg'))
 
 
 configfile_parser = argparse.ArgumentParser(description='Generates a configuration file for the current Pwndbg options')
@@ -78,11 +99,11 @@ def configfile_print_scope(scope, show_all=False):
 
     if params:
         if not show_all:
-            print(light_yellow('Showing only changed values:'))
+            print(hint('Showing only changed values:'))
         for p in params:
             print('# %s: %s' % (p.optname, p.docstring))
             print('# default: %s' % p.native_default)
             print('set %s %s' % (p.optname, p.native_value))
             print()
     else:
-        print(light_yellow('No changed values. To see current values use `%s`.' % scope))
+        print(hint('No changed values. To see current values use `%s`.' % scope))

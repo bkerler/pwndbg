@@ -14,26 +14,21 @@ import pwndbg.commands.telescope
 import pwndbg.disasm
 
 parser = argparse.ArgumentParser(
-    description='Prints determined arguments for call instruction. Pass --all to see all possible arguments.'
+    description='Prints determined arguments for call instruction.'
 )
-parser.add_argument('--force', action='store_true', help='Force displaying of all arguments.')
+parser.add_argument('-f', '--force', action='store_true', help='Force displaying of all arguments.')
 
 
 @pwndbg.commands.ArgparsedCommand(parser)
 @pwndbg.commands.OnlyWhenRunning
 def dumpargs(force=False):
-    force_text = "Use `%s --force` to force the display." % dumpargs.__name__
-
-    if not pwndbg.disasm.is_call() and not force:
-        print("Cannot dump args as current instruction is not a call.\n" + force_text)
-        return
-
-    args = all_args() if force else call_args()
+    args = (not force and call_args()) or all_args()
 
     if args:
         print('\n'.join(args))
     else:
-        print("Couldn't resolve call arguments. Maybe the function doesn\'t take any?\n" + force_text)
+        print("Couldn't resolve call arguments from registers.")
+        print("Detected ABI: {} ({} bit) either doesn't pass arguments through registers or is not implemented. Maybe they are passed on the stack?".format(pwndbg.arch.current, pwndbg.arch.ptrsize*8))
 
 
 def call_args():

@@ -12,13 +12,14 @@ from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
 
+import bisect
 import os
 import sys
 
 import gdb
+import six
 
 import pwndbg.abi
-import pwndbg.compat
 import pwndbg.elf
 import pwndbg.events
 import pwndbg.file
@@ -35,13 +36,23 @@ import pwndbg.typeinfo
 # by analyzing the stack or register context.
 explored_pages = []
 
+# List of custom pages that can be managed manually by vmmap_* commands family
+custom_pages = []
+
 @pwndbg.events.new_objfile
 @pwndbg.memoize.reset_on_stop
 def get():
+    if not pwndbg.proc.alive:
+        return tuple()
     pages = []
     pages.extend(proc_pid_maps())
 
     if not pages:
+        # If debugee is launched from a symlink the debugee memory maps will be
+        # labeled with symlink path while in normal scenario the /proc/pid/maps
+        # labels debugee memory maps with real path (after symlinks).
+        # This is because the exe path in AUXV (and so `info auxv`) is before
+        # following links.
         pages.extend(info_auxv())
 
         if pages: pages.extend(info_sharedlibrary())
@@ -50,16 +61,16 @@ def get():
         pages.extend(pwndbg.stack.stacks.values())
 
     pages.extend(explored_pages)
+    pages.extend(custom_pages)
     pages.sort()
     return tuple(pages)
 
 @pwndbg.memoize.reset_on_stop
 def find(address):
-    if address is None or address < pwndbg.memory.MMAP_MIN_ADDR:
+    if address is None:
         return None
 
-    if address:
-        address = int(address)
+    address = int(address)
 
     for page in get():
         if address in page:
@@ -96,6 +107,7 @@ def explore(address_maybe):
     flags |= 1 if not pwndbg.stack.nx               else 0
 
     page = find_boundaries(address_maybe)
+    page.objfile = '<explored>'
     page.flags = flags
 
     explored_pages.append(page)
@@ -114,6 +126,26 @@ def clear_explored_pages():
     while explored_pages:
         explored_pages.pop()
 
+
+def add_custom_page(page):
+    bisect.insort(custom_pages, page)
+
+    # Reset all the cache
+    # We can not reset get() only, since the result may be used by others.
+    # TODO: avoid flush all caches
+    pwndbg.memoize.reset()
+
+
+def clear_custom_page():
+    while custom_pages:
+        custom_pages.pop()
+
+    # Reset all the cache
+    # We can not reset get() only, since the result may be used by others.
+    # TODO: avoid flush all caches
+    pwndbg.memoize.reset()
+
+
 @pwndbg.memoize.reset_on_stop
 def proc_pid_maps():
     """
@@ -123,7 +155,9 @@ def proc_pid_maps():
         A list of pwndbg.memory.Page objects.
     """
 
-    if pwndbg.qemu.is_qemu_usermode():
+    # If we debug remotely a qemu-user or qemu-system target,
+    # there is no point of hitting things further
+    if pwndbg.qemu.is_qemu():
         return tuple()
 
     example_proc_pid_maps = """
@@ -163,7 +197,7 @@ def proc_pid_maps():
     else:
         return tuple()
 
-    if pwndbg.compat.python3:
+    if six.PY3:
         data = data.decode()
 
     pages = []
@@ -299,7 +333,8 @@ def info_files():
 def info_auxv(skip_exe=False):
     """
     Extracts the name of the executable from the output of the command
-    "info auxv".
+    "info auxv". Note that if the executable path is a symlink,
+    it is not dereferenced by `info auxv` and we also don't dereference it.
 
     Arguments:
         skip_exe(bool): Do not return any mappings that belong to the exe.

@@ -205,14 +205,24 @@ def address(symbol):
     try:
         symbol_obj = gdb.lookup_symbol(symbol)[0]
         if symbol_obj:
-            return int(symbol_obj)
+            return int(symbol_obj.value().address)
     except Exception:
         pass
 
     try:
         result = gdb.execute('info address %s' % symbol, to_string=True, from_tty=False)
-        address = re.search('0x[0-9a-fA-F]+', result).group()
-        return int(address, 0)
+        address = int(re.search('0x[0-9a-fA-F]+', result).group(), 0)
+
+        # The address found should lie in one of the memory maps
+        # There are cases when GDB shows offsets e.g.:
+        # pwndbg> info address tcache
+        # Symbol "tcache" is a thread-local variable at offset 0x40
+        # in the thread-local storage for `/lib/x86_64-linux-gnu/libc.so.6'.
+        if not pwndbg.vmmap.find(address):
+            return None
+
+        return address
+
     except gdb.error:
         return None
 

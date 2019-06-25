@@ -6,19 +6,24 @@ It has a boatload of features, see [FEATURES.md](FEATURES.md).
 
 ## Why?
 
-Vanilla GDB is terrible to use for reverse engineering and exploit development. Typing `x/g30x $esp` is not fun, and does not  confer much information.  The year is 2017 and GDB still lacks a hexdump command.  GDB's syntax is arcane and difficult to approach.  Windbg users are completely lost when they occasionally need to bump into GDB.
+Vanilla GDB is terrible to use for reverse engineering and exploit development. Typing `x/g30x $esp` is not fun, and does not  confer much information.  The year is 2019 and GDB still lacks a hexdump command!  GDB's syntax is arcane and difficult to approach.  Windbg users are completely lost when they occasionally need to bump into GDB.
 
 ## What?
 
 Pwndbg is a Python module which is loaded directly into GDB, and provides a suite of utilities and crutches to hack around all of the cruft that is GDB and smooth out the rough edges.
 
-Many other projects from the past (e.g., [gdbinit][gdbinit], [PEDA][PEDA]) and present (e.g. [GEF][GEF]) exist to fill some these gaps.  Unfortunately, they're all either unmaintained, unmaintainable, or not well suited to easily navigating the code to hack in new features (respectively).
+Many other projects from the past (e.g., [gdbinit][gdbinit], [PEDA][PEDA]) and present (e.g. [GEF][GEF]) exist to fill some these gaps.  Each provides an excellent experience and great features -- but they're difficult to extend (some are unmaintained, and all are a single [100KB][gdbinit2], [200KB][peda.py], or [300KB][gef.py] file (respectively)).
 
 Pwndbg exists not only to replace all of its predecessors, but also to have a clean implementation that runs quickly and is resilient against all the weird corner cases that come up.
 
 [gdbinit]: https://github.com/gdbinit/Gdbinit
+[gdbinit2]: https://github.com/gdbinit/Gdbinit/blob/master/gdbinit
+
 [PEDA]: https://github.com/longld/peda
+[peda.py]: https://github.com/longld/peda/blob/master/peda.py
+
 [GEF]: https://github.com/hugsy/gef
+[gef.py]: https://github.com/hugsy/gef/blob/master/gef.py
 
 ## How?
 
@@ -38,11 +43,11 @@ For further info about features/functionalities, see [FEATURES](FEATURES.md).
 
 ## Who?
 
-Most of Pwndbg was written by [Zach Riggle](https://twitter.com/ebeip90), with [many other contributors](https://github.com/pwndbg/pwndbg/graphs/contributors) offering up patches via Pull Requests.
+Pwndbg is an open-source project, written and maintained by [many contributors](https://github.com/pwndbg/pwndbg/graphs/contributors)!
 
 Want to help with development? Read [CONTRIBUTING](.github/CONTRIBUTING.md).
 
 ## Contact
 If you have any questions not worthy of a [bug report](https://github.com/pwndbg/pwndbg/issues), feel free to ping
-[`ebeip90` at #pwndbg on Freenode](irc://irc.freenode.net/pwndbg) and ask away.
+[`ebeip90` or `disconnect3d` at #pwndbg on Freenode](irc://irc.freenode.net/pwndbg) and ask away.
 Click [here](https://kiwiirc.com/client/irc.freenode.net/pwndbg) to connect.

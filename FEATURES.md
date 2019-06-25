@@ -17,6 +17,8 @@ All function call sites are annotated with the arguments to those functions.  Th
 
 A useful summary of the current execution context is printed every time GDB stops (e.g. breakpoint or single-step), displaying all registers, the stack, call frames, disassembly, and additionally recursively dereferencing all pointers.  All memory addresses are color-coded to the type of memory they represent.
 
+The output of the context may be redirected to a file (including other tty) by using `set context-output /path/to/file` while leaving other output in place.
+
 ![](caps/context.png)  
 
 ## Disassembly
@@ -133,6 +135,11 @@ Just use the `rop` command!
 Pwndbg makes searching the target memory space easy, with a complete and easy-to-use interface.  Whether you're searching for bytes, strings, or various sizes of integer values or pointers, it's a simple command away.
 
 ![](caps/search.png)  
+
+## Finding Leaks
+![](caps/leakfind.png)
+Finding leak chains can be done using the `leakfind` command. It recurisvely inspects address ranges for pointers, and reports on all pointers found.
+
 
 ## Telescope
 
